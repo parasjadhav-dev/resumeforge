@@ -29,9 +29,12 @@ const text = (formData: FormData, key: string) => String(formData.get(key) ?? ""
 
 export async function createResumeAction(_: ActionState, formData: FormData) {
   const title = text(formData, "title").trim();
-  return run(async (userId) => {
-    await resumeService.create(userId, title ? { title } : {});
+  let newId: string | undefined;
+  const result = await run(async (userId) => {
+    newId = (await resumeService.create(userId, title ? { title } : {})).id;
   });
+  if (newId) redirect(`/resumes/${newId}/edit`); // redirect throws, so it stays outside run()'s try
+  return result;
 }
 
 export async function renameResumeAction(_: ActionState, formData: FormData) {
