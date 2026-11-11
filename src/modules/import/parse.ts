@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { LlmClient } from "@/lib/llm";
+import type { ImportReview } from "@/shared/import-review";
 import { cleanBullets } from "@/shared/resume-format";
 import { resumeContentSchema, type ResumeContent } from "@/shared/schema";
 
@@ -70,40 +71,89 @@ export const buildParsePrompt = (text: string) =>
 
 const tokenize = (s: string) => s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 
+/** What share (0 to 1) of a text's words appear in the source document. */
+export function makeGroundingRatio(source: string) {
+  const known = new Set(tokenize(source));
+  return (value: string): number => {
+    const tokens = tokenize(value);
+    if (tokens.length === 0) return 1;
+    return tokens.filter((t) => known.has(t)).length / tokens.length;
+  };
+}
+
 /**
  * Returns a checker: is this text actually present in the source document?
  * Short values (names, skills) must match fully; longer text may differ slightly
  * (the model may repair line breaks), so most of its words must appear in the source.
  */
 export function makeGrounder(source: string) {
-  const known = new Set(tokenize(source));
+  const ratio = makeGroundingRatio(source);
   return (value: string): boolean => {
     const tokens = tokenize(value);
     if (tokens.length === 0) return true;
-    const found = tokens.filter((t) => known.has(t)).length;
-    return tokens.length <= 3 ? found === tokens.length : found / tokens.length >= 0.7;
+    return tokens.length <= 3 ? ratio(value) === 1 : ratio(value) >= 0.7;
   };
 }
 
 const ONGOING = /^(present|current|now|ongoing|till date|to date|today)$/i;
 
 /**
+ * Why each imported item deserves a second look, in plain language. The list-shaped fields are
+ * aligned with the (filtered) arrays of the parsed resume, so index N describes entry N.
+ */
+export type ReviewFlags = {
+  contact: string[];
+  summary: string[];
+  experience: string[][];
+  education: string[][];
+  projects: string[][];
+  skills: string[][];
+  certifications: string[][];
+};
+
+const REASON = {
+  removed: "Something here was not found in your file, so it was left out.",
+  reworded: "The wording differs a little from your file.",
+  noName: "No name was found.",
+  noEmail: "No email was found.",
+  noTitle: "No job title was found.",
+  noCompany: "No company was found.",
+  noDates: "No dates were found.",
+  noBullets: "No bullet points were found.",
+  noSchool: "No school was found.",
+  noDegree: "No degree was found.",
+};
+
+const MAX_REASONS = 3;
+const present = (r: string | false): r is string => Boolean(r);
+
+/**
  * Removes ungrounded values and blank entries, and normalises "ongoing" end dates.
- * `dropped` lists what was removed, so the user can be told.
+ * `dropped` lists what was removed; `flags` explains what the user should double-check.
  */
 export function groundParsedResume(
   parsed: ParsedResume,
   source: string,
-): { parsed: ParsedResume; dropped: string[] } {
+): { parsed: ParsedResume; dropped: string[]; flags: ReviewFlags } {
   const isGrounded = makeGrounder(source);
+  const ratio = makeGroundingRatio(source);
   const dropped: string[] = [];
+
+  // Reasons for whichever entry is currently being built.
+  let reasons: string[] = [];
+  const note = (reason: string) => {
+    if (!reasons.includes(reason)) reasons.push(reason);
+  };
+  const looksReworded = (v: string) => tokenize(v).length > 3 && ratio(v) < 1;
 
   const field = (where: string, value: string) => {
     const v = value.trim();
     if (v && !isGrounded(v)) {
       dropped.push(where);
+      note(REASON.removed);
       return "";
     }
+    if (v && looksReworded(v)) note(REASON.reworded);
     return v;
   };
   const list = (where: string, values: string[]) =>
@@ -111,83 +161,155 @@ export function groundParsedResume(
       .map((v) => v.trim())
       .filter((v) => {
         if (!v) return false;
-        if (isGrounded(v)) return true;
+        if (isGrounded(v)) {
+          if (looksReworded(v)) note(REASON.reworded);
+          return true;
+        }
         dropped.push(where);
+        note(REASON.removed);
         return false;
       });
   const hasContent = (obj: Record<string, unknown>) =>
     Object.values(obj).some((v) => (Array.isArray(v) ? v.length > 0 : typeof v === "string" && v));
 
-  const c = parsed.contact;
-  const result: ParsedResume = {
-    contact: {
-      fullName: field("contact.fullName", c.fullName),
-      email: field("contact.email", c.email),
-      phone: field("contact.phone", c.phone),
-      location: field("contact.location", c.location),
-      linkedin: field("contact.linkedin", c.linkedin),
-      github: field("contact.github", c.github),
-      website: field("contact.website", c.website),
-    },
-    summary: field("summary", parsed.summary),
-    experience: parsed.experience
-      .map((e, i) => {
-        const w = `experience[${i}]`;
-        const endDate = field(`${w}.endDate`, e.endDate);
-        const ongoing = e.current || ONGOING.test(endDate);
-        return {
-          title: field(`${w}.title`, e.title),
-          company: field(`${w}.company`, e.company),
-          location: field(`${w}.location`, e.location),
-          startDate: field(`${w}.startDate`, e.startDate),
-          endDate: ONGOING.test(endDate) ? "" : endDate,
-          current: ongoing,
-          bullets: list(`${w}.bullets`, e.bullets),
-        };
-      })
-      .filter((e) => e.title || e.company || e.bullets.length),
-    education: parsed.education
-      .map((e, i) => {
-        const w = `education[${i}]`;
-        return {
-          institution: field(`${w}.institution`, e.institution),
-          degree: field(`${w}.degree`, e.degree),
-          field: field(`${w}.field`, e.field),
-          location: field(`${w}.location`, e.location),
-          startDate: field(`${w}.startDate`, e.startDate),
-          endDate: field(`${w}.endDate`, e.endDate),
-          gpa: field(`${w}.gpa`, e.gpa),
-          details: list(`${w}.details`, e.details),
-        };
-      })
-      .filter(hasContent),
-    projects: parsed.projects
-      .map((p, i) => {
-        const w = `projects[${i}]`;
-        return {
-          name: field(`${w}.name`, p.name),
-          link: field(`${w}.link`, p.link),
-          technologies: list(`${w}.technologies`, p.technologies),
-          bullets: list(`${w}.bullets`, p.bullets),
-        };
-      })
-      .filter((p) => p.name || p.bullets.length),
-    skills: parsed.skills
-      .map((g, i) => ({
-        category: field(`skills[${i}].category`, g.category),
-        items: list(`skills[${i}].items`, g.items),
-      }))
-      .filter((g) => g.items.length > 0),
-    certifications: parsed.certifications
-      .map((cert, i) => ({
-        name: field(`certifications[${i}].name`, cert.name),
-        issuer: field(`certifications[${i}].issuer`, cert.issuer),
-        date: field(`certifications[${i}].date`, cert.date),
-      }))
-      .filter((cert) => cert.name),
-  };
+  /** Builds each entry, drops blank ones, and keeps the reasons aligned with what remains. */
+  function collect<I, O>(
+    items: I[],
+    make: (item: I, index: number) => O,
+    keep: (built: O) => boolean,
+    missing: (built: O) => string[] = () => [],
+  ) {
+    const values: O[] = [];
+    const flags: string[][] = [];
+    items.forEach((item, index) => {
+      reasons = [];
+      const built = make(item, index);
+      if (!keep(built)) return;
+      missing(built).forEach(note);
+      values.push(built);
+      flags.push(reasons.slice(0, MAX_REASONS));
+    });
+    return { values, flags };
+  }
 
-  return { parsed: result, dropped };
+  reasons = [];
+  const c = parsed.contact;
+  const contact = {
+    fullName: field("contact.fullName", c.fullName),
+    email: field("contact.email", c.email),
+    phone: field("contact.phone", c.phone),
+    location: field("contact.location", c.location),
+    linkedin: field("contact.linkedin", c.linkedin),
+    github: field("contact.github", c.github),
+    website: field("contact.website", c.website),
+  };
+  if (!contact.fullName) note(REASON.noName);
+  if (!contact.email) note(REASON.noEmail);
+  const contactFlags = reasons.slice(0, MAX_REASONS);
+
+  reasons = [];
+  const summary = field("summary", parsed.summary);
+  const summaryFlags = reasons.slice(0, MAX_REASONS);
+
+  const experience = collect(
+    parsed.experience,
+    (e, i) => {
+      const w = `experience[${i}]`;
+      const endDate = field(`${w}.endDate`, e.endDate);
+      return {
+        title: field(`${w}.title`, e.title),
+        company: field(`${w}.company`, e.company),
+        location: field(`${w}.location`, e.location),
+        startDate: field(`${w}.startDate`, e.startDate),
+        endDate: ONGOING.test(endDate) ? "" : endDate,
+        current: e.current || ONGOING.test(endDate),
+        bullets: list(`${w}.bullets`, e.bullets),
+      };
+    },
+    (e) => Boolean(e.title || e.company || e.bullets.length),
+    (e) =>
+      [
+        !e.title && REASON.noTitle,
+        !e.company && REASON.noCompany,
+        !e.startDate && !e.endDate && !e.current && REASON.noDates,
+        e.bullets.length === 0 && REASON.noBullets,
+      ].filter(present),
+  );
+
+  const education = collect(
+    parsed.education,
+    (e, i) => {
+      const w = `education[${i}]`;
+      return {
+        institution: field(`${w}.institution`, e.institution),
+        degree: field(`${w}.degree`, e.degree),
+        field: field(`${w}.field`, e.field),
+        location: field(`${w}.location`, e.location),
+        startDate: field(`${w}.startDate`, e.startDate),
+        endDate: field(`${w}.endDate`, e.endDate),
+        gpa: field(`${w}.gpa`, e.gpa),
+        details: list(`${w}.details`, e.details),
+      };
+    },
+    hasContent,
+    (e) =>
+      [!e.institution && REASON.noSchool, !e.degree && !e.field && REASON.noDegree].filter(present),
+  );
+
+  const projects = collect(
+    parsed.projects,
+    (p, i) => {
+      const w = `projects[${i}]`;
+      return {
+        name: field(`${w}.name`, p.name),
+        link: field(`${w}.link`, p.link),
+        technologies: list(`${w}.technologies`, p.technologies),
+        bullets: list(`${w}.bullets`, p.bullets),
+      };
+    },
+    (p) => Boolean(p.name || p.bullets.length),
+  );
+
+  const skills = collect(
+    parsed.skills,
+    (g, i) => ({
+      category: field(`skills[${i}].category`, g.category),
+      items: list(`skills[${i}].items`, g.items),
+    }),
+    (g) => g.items.length > 0,
+  );
+
+  const certifications = collect(
+    parsed.certifications,
+    (cert, i) => ({
+      name: field(`certifications[${i}].name`, cert.name),
+      issuer: field(`certifications[${i}].issuer`, cert.issuer),
+      date: field(`certifications[${i}].date`, cert.date),
+    }),
+    (cert) => Boolean(cert.name),
+  );
+
+  return {
+    parsed: {
+      contact,
+      summary,
+      experience: experience.values,
+      education: education.values,
+      projects: projects.values,
+      skills: skills.values,
+      certifications: certifications.values,
+    },
+    dropped,
+    flags: {
+      contact: contactFlags,
+      summary: summaryFlags,
+      experience: experience.flags,
+      education: education.flags,
+      projects: projects.flags,
+      skills: skills.flags,
+      certifications: certifications.flags,
+    },
+  };
 }
 
 // ---------- mapping into the stored resume schema ----------
@@ -255,11 +377,26 @@ export function toResumeContent(p: ParsedResume): ResumeContent {
   });
 }
 
-/** Text -> AI extraction -> grounding -> a valid resume, plus anything that was removed. */
+/** Re-keys positional flags by entry id, so they survive reordering or deleting entries. */
+export function toImportReview(content: ResumeContent, flags: ReviewFlags): ImportReview {
+  const entries: Record<string, string[]> = {};
+  const add = (list: { id: string }[], reasons: string[][]) =>
+    list.forEach((entry, i) => {
+      if (reasons[i]?.length) entries[entry.id] = reasons[i];
+    });
+  add(content.experience, flags.experience);
+  add(content.education, flags.education);
+  add(content.projects, flags.projects);
+  add(content.skills, flags.skills);
+  add(content.certifications, flags.certifications);
+  return { contact: flags.contact, summary: flags.summary, entries };
+}
+
+/** Text -> AI extraction -> grounding -> a valid resume, plus what was removed and what to review. */
 export async function parseResumeText(
   text: string,
   llm: LlmClient,
-): Promise<{ content: ResumeContent; dropped: string[] }> {
+): Promise<{ content: ResumeContent; dropped: string[]; review: ImportReview }> {
   const parsed = await llm.generateJson({
     system: PARSE_SYSTEM_PROMPT,
     prompt: buildParsePrompt(text),
@@ -267,5 +404,6 @@ export async function parseResumeText(
     maxOutputTokens: 8192,
   });
   const grounded = groundParsedResume(parsed, text);
-  return { content: toResumeContent(grounded.parsed), dropped: grounded.dropped };
+  const content = toResumeContent(grounded.parsed);
+  return { content, dropped: grounded.dropped, review: toImportReview(content, grounded.flags) };
 }

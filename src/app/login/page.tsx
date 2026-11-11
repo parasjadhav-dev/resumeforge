@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { Logo } from "@/components/brand/logo";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { safeRedirect } from "@/lib/safe-redirect";
@@ -27,18 +29,23 @@ export default function LoginPage({
   searchParams: Promise<{ callbackUrl?: string }>;
 }) {
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-sm space-y-6 text-center">
+    <main className="bg-brand-glow relative flex min-h-screen flex-col items-center justify-center gap-8 p-6">
+      <ThemeToggle className="absolute top-4 right-4" />
+      <Logo href="/" />
+      <div className="bg-card shadow-pop w-full max-w-sm space-y-6 rounded-2xl border p-8 text-center">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold">Sign in to ResumeForge</h1>
           <p className="text-muted-foreground text-sm">
-            Build an ATS-friendly resume and tailor it to any job.
+            Build an ATS-friendly resume and tailor it to any job. The AI never invents experience.
           </p>
         </div>
         <Suspense fallback={<div className="bg-muted h-9 w-full animate-pulse rounded-md" />}>
           <GoogleSignIn searchParams={searchParams} />
         </Suspense>
       </div>
+      <p className="text-muted-foreground max-w-xs text-center text-xs">
+        We only use your Google account to sign you in. Your resumes stay private to you.
+      </p>
     </main>
   );
 }

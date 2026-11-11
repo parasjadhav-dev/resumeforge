@@ -1,12 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { saveResumeAction } from "@/app/resumes/[id]/edit/actions";
+import { Logo } from "@/components/brand/logo";
+import { PageContainer } from "@/components/layout/page-container";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
+import { cn } from "@/lib/utils";
+import { countReviewItems } from "@/shared/import-review";
 import { findUnsupportedInResume, unsupportedCharsMessage } from "@/shared/pdf-charset";
 import type { ResumeContent, TemplateId } from "@/shared/schema";
+import { useImportSession } from "./import-session";
 import { PreviewPanel } from "./preview-panel";
+import { ReviewProvider } from "./review-context";
 import { TemplatePicker } from "./template-picker";
 import {
   CertificationsSection,
@@ -89,6 +97,7 @@ export function ResumeEditor({
   initial,
   initialTemplateId,
   importNotice,
+  userMenu,
 }: {
   id: string;
   title: string;
@@ -96,6 +105,8 @@ export function ResumeEditor({
   initialTemplateId: TemplateId;
   /** Set when this resume was just imported from a file. */
   importNotice?: { itemsLeftOut: boolean };
+  /** The account menu, supplied by the server page (it needs the session and sign-out action). */
+  userMenu?: ReactNode;
 }) {
   const [noticeOpen, setNoticeOpen] = useState(Boolean(importNotice));
   const [content, setContent] = useState(initial);
@@ -103,6 +114,8 @@ export function ResumeEditor({
   const state = useMemo(() => ({ content, templateId }), [content, templateId]);
   const { status, error, saving, dirty, save } = useAutosave(id, state);
   const unsupported = useMemo(() => findUnsupportedInResume(content), [content]);
+  const { session, resolve } = useImportSession(id, Boolean(importNotice));
+  const reviewCount = session ? countReviewItems(session.review) : 0;
 
   const set =
     <K extends keyof ResumeContent>(key: K) =>
@@ -110,17 +123,41 @@ export function ResumeEditor({
       setContent((prev) => ({ ...prev, [key]: value }));
 
   return (
-    <div>
-      <header className="bg-background/90 sticky top-0 z-10 border-b backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="min-w-0">
-            <Link href="/dashboard" className="text-muted-foreground text-xs hover:underline">
-              ← All resumes
-            </Link>
-            <h1 className="truncate text-xl font-semibold">{title}</h1>
+    <ReviewProvider value={{ review: session?.review ?? null, resolve }}>
+      <header className="bg-background/80 sticky top-0 z-30 border-b backdrop-blur-md">
+        <PageContainer
+          size="wide"
+          className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2.5"
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            <Logo href="/dashboard" showWordmark={false} />
+            <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm">
+              <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">
+                Your resumes
+              </Link>
+              <span className="text-muted-foreground" aria-hidden="true">
+                /
+              </span>
+              <h1 className="truncate text-base font-semibold">{title}</h1>
+            </nav>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-muted-foreground text-sm" role="status" aria-live="polite">
+          <div className="flex flex-wrap items-center gap-3">
+            <ThemeToggle />
+            <span
+              className="text-muted-foreground flex items-center gap-2 text-sm"
+              role="status"
+              aria-live="polite"
+            >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "size-2 rounded-full",
+                  saving && "animate-pulse bg-amber-500",
+                  !saving && error && "bg-red-500",
+                  !saving && !error && dirty && "bg-amber-500",
+                  !saving && !error && !dirty && "bg-emerald-500",
+                )}
+              />
               {status}
             </span>
             <Button
@@ -150,32 +187,57 @@ export function ResumeEditor({
                 Download PDF
               </a>
             )}
+            {userMenu}
           </div>
-        </div>
+        </PageContainer>
       </header>
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-5 sm:px-6 lg:grid-cols-2 lg:items-start">
+      {/* Form beside a page-shaped preview. The form keeps a readable width; the preview gets the rest. */}
+      <PageContainer
+        size="wide"
+        className="grid gap-6 py-6 lg:grid-cols-2 lg:items-start xl:grid-cols-[minmax(0,44rem)_minmax(0,1fr)]"
+      >
         <div className="space-y-5">
           {error && (
-            <p
-              role="alert"
-              className="text-destructive rounded-lg border border-current p-3 text-sm"
-            >
+            <Notice variant="danger" role="alert">
               {error}
-            </p>
+            </Notice>
           )}
           {importNotice && noticeOpen && (
-            <div
+            <Notice
+              variant="info"
               role="status"
               data-testid="import-notice"
-              className="flex items-start justify-between gap-3 rounded-lg border border-blue-600 bg-blue-50 p-3 text-sm text-blue-950 dark:bg-blue-950 dark:text-blue-50"
+              className="flex items-start justify-between gap-3"
             >
-              <p>
-                <strong>Imported from your file.</strong> AI can make mistakes, so check every
-                section against your original before you use this resume.
-                {importNotice.itemsLeftOut &&
-                  " Some items could not be matched to your file and were left out, so look for anything missing."}
-              </p>
+              <div className="min-w-0 space-y-2">
+                <p>
+                  <strong>Imported from your file.</strong> AI can make mistakes, so check every
+                  section against your original before you use this resume.
+                  {importNotice.itemsLeftOut &&
+                    " Some items could not be matched to your file and were left out, so look for anything missing."}
+                </p>
+                {reviewCount > 0 && (
+                  <p data-testid="review-count" className="font-medium">
+                    {reviewCount} {reviewCount === 1 ? "item needs" : "items need"} a closer look.
+                    They are marked below.
+                  </p>
+                )}
+                {session?.sourceText && (
+                  <details data-testid="import-source">
+                    <summary className="cursor-pointer font-medium">
+                      Original text from your file
+                    </summary>
+                    <pre className="border-info-border bg-card text-card-foreground mt-2 max-h-72 overflow-auto rounded-md border p-2 font-mono text-xs whitespace-pre-wrap">
+                      {session.sourceText}
+                    </pre>
+                    <p className="mt-1 text-xs">
+                      Shown only in this browser tab. It is not saved, and it disappears when you
+                      close the tab.
+                    </p>
+                  </details>
+                )}
+              </div>
               <Button
                 type="button"
                 variant="ghost"
@@ -185,16 +247,12 @@ export function ResumeEditor({
               >
                 Dismiss
               </Button>
-            </div>
+            </Notice>
           )}
           {unsupported.length > 0 && (
-            <p
-              role="alert"
-              data-testid="unsupported-chars"
-              className="rounded-lg border border-amber-600 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950 dark:text-amber-50"
-            >
+            <Notice variant="warning" role="alert" data-testid="unsupported-chars">
               {unsupportedCharsMessage(unsupported)}
-            </p>
+            </Notice>
           )}
           <TemplatePicker value={templateId} onChange={setTemplateId} />
           <ContactSection value={content.contact} onChange={set("contact")} />
@@ -207,10 +265,8 @@ export function ResumeEditor({
         </div>
 
         {/* Stacks below the form on small screens; sticks beside it on large ones. */}
-        <div className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
-          <PreviewPanel content={content} templateId={templateId} />
-        </div>
-      </div>
-    </div>
+        <PreviewPanel content={content} templateId={templateId} />
+      </PageContainer>
+    </ReviewProvider>
   );
 }

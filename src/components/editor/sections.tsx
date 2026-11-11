@@ -17,6 +17,7 @@ import {
   TextArea,
   TextField,
 } from "./fields";
+import { ReviewNote, useSectionReview } from "./review-context";
 
 type SectionProps<K extends keyof ResumeContent> = {
   value: ResumeContent[K];
@@ -25,8 +26,10 @@ type SectionProps<K extends keyof ResumeContent> = {
 
 export function ContactSection({ value, onChange }: SectionProps<"contact">) {
   const set = (patch: Partial<typeof value>) => onChange({ ...value, ...patch });
+  const { reasons, markChecked } = useSectionReview("contact");
   return (
     <Section title="Contact" description="How recruiters reach you.">
+      <ReviewNote reasons={reasons} onChecked={markChecked} what="your contact details" />
       <div className="grid gap-3 sm:grid-cols-2">
         <TextField
           label="Full name"
@@ -74,8 +77,10 @@ export function ContactSection({ value, onChange }: SectionProps<"contact">) {
 }
 
 export function SummarySection({ value, onChange }: SectionProps<"summary">) {
+  const { reasons, markChecked } = useSectionReview("summary");
   return (
     <Section title="Summary" description="2–3 sentences about who you are and what you offer.">
+      <ReviewNote reasons={reasons} onChecked={markChecked} what="your summary" />
       <TextArea
         label="Professional summary"
         value={value}

@@ -1,42 +1,35 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
-import { signOutAction } from "@/app/login/actions";
-import { Button } from "@/components/ui/button";
-import { auth } from "@/lib/auth";
+import { AppShell } from "@/components/layout/app-shell";
+import { PageContainer } from "@/components/layout/page-container";
 import { ImportResumeForm } from "./import-resume-form";
 import { NewResumeForm } from "./new-resume-form";
-import { ResumeList } from "./resume-list";
+import { ResumeList, ResumeListSkeleton } from "./resume-list";
 
-async function UserBar() {
-  const session = await auth();
-
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-muted-foreground text-sm">{session?.user?.email}</span>
-      <form action={signOutAction}>
-        <Button type="submit" variant="outline" size="sm">
-          Sign out
-        </Button>
-      </form>
-    </div>
-  );
-}
+export const metadata: Metadata = { title: "Your resumes" };
 
 export default function DashboardPage() {
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6">
-      <header className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Your resumes</h1>
-        <Suspense fallback={null}>
-          <UserBar />
-        </Suspense>
-      </header>
-      <NewResumeForm />
-      <ImportResumeForm />
-      <Suspense
-        fallback={<div className="bg-muted h-16 animate-pulse rounded-lg" aria-label="Loading" />}
-      >
-        <ResumeList />
-      </Suspense>
-    </main>
+    <AppShell>
+      <PageContainer className="space-y-8 py-8 sm:py-10">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-semibold">Your resumes</h1>
+          <p className="text-muted-foreground">
+            Build a new one, import the one you have, or pick up where you left off.
+          </p>
+        </div>
+
+        <section aria-label="Create a resume" className="grid gap-4 md:grid-cols-2">
+          <NewResumeForm />
+          <ImportResumeForm />
+        </section>
+
+        <section aria-label="Your resumes">
+          <Suspense fallback={<ResumeListSkeleton />}>
+            <ResumeList />
+          </Suspense>
+        </section>
+      </PageContainer>
+    </AppShell>
   );
 }

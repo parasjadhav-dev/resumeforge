@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { signOutAction } from "@/app/login/actions";
 import { ResumeEditor } from "@/components/editor/resume-editor";
+import { UserMenu } from "@/components/layout/user-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { requireUser } from "@/lib/session";
 import { NotFoundError, resumeService } from "@/modules/resumes";
 import { resolveTemplateId } from "@/shared/templates";
@@ -27,6 +30,7 @@ async function EditorLoader({ params, searchParams }: Props) {
       initial={resume.content}
       initialTemplateId={resolveTemplateId(resume.templateId)}
       importNotice={imported === "1" ? { itemsLeftOut: check === "1" } : undefined}
+      userMenu={<UserMenu name={user.name} email={user.email} signOut={signOutAction} />}
     />
   );
 }
@@ -35,8 +39,10 @@ export default function EditResumePage({ params, searchParams }: Props) {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-3xl p-6">
-          <div className="bg-muted h-40 animate-pulse rounded-xl" aria-label="Loading editor" />
+        <div className="mx-auto max-w-3xl space-y-4 p-6" role="status" aria-label="Loading editor">
+          <Skeleton className="h-8 w-1/3" />
+          <Skeleton className="h-48 rounded-xl" />
+          <Skeleton className="h-48 rounded-xl" />
         </div>
       }
     >

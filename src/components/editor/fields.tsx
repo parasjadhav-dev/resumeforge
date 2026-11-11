@@ -3,12 +3,14 @@
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { moveItem, parseTags, removeAt, replaceAt } from "@/lib/array";
+import { ReviewNote, useEntryReview } from "./review-context";
 
 const MAX_BULLETS = 15; // matches the resume schema
-
-const inputClass =
-  "border-input bg-background placeholder:text-muted-foreground w-full rounded-lg border px-2.5 py-1.5 text-sm disabled:opacity-50";
 
 type TextFieldProps = {
   label: string;
@@ -24,16 +26,13 @@ type TextFieldProps = {
 export function TextField({ label, value, onChange, type = "text", ...rest }: TextFieldProps) {
   const id = useId();
   return (
-    <div className="space-y-1">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </label>
-      <input
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
         id={id}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={inputClass}
         {...rest}
       />
     </div>
@@ -53,17 +52,14 @@ type TextAreaProps = {
 export function TextArea({ label, value, onChange, rows = 4, hint, ...rest }: TextAreaProps) {
   const id = useId();
   return (
-    <div className="space-y-1">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </label>
-      <textarea
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Textarea
         id={id}
         value={value}
         rows={rows}
         onChange={(e) => onChange(e.target.value)}
         aria-describedby={hint ? `${id}-hint` : undefined}
-        className={inputClass}
         {...rest}
       />
       {hint && (
@@ -84,20 +80,11 @@ export function CheckboxField({
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
-  const id = useId();
   return (
-    <div className="flex items-center gap-2">
-      <input
-        id={id}
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="size-4"
-      />
-      <label htmlFor={id} className="text-sm">
-        {label}
-      </label>
-    </div>
+    <Label className="w-fit cursor-pointer">
+      <Checkbox checked={checked} onCheckedChange={(value) => onChange(value)} />
+      {label}
+    </Label>
   );
 }
 
@@ -116,11 +103,9 @@ export function TagField({
   const id = useId();
   const [text, setText] = useState(values.join(", "));
   return (
-    <div className="space-y-1">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </label>
-      <input
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
         id={id}
         value={text}
         placeholder={placeholder}
@@ -130,7 +115,6 @@ export function TagField({
         }}
         onBlur={() => setText(values.join(", "))}
         aria-describedby={`${id}-hint`}
-        className={inputClass}
       />
       <p id={`${id}-hint`} className="text-muted-foreground text-xs">
         Separate with commas.
@@ -194,7 +178,7 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="space-y-4 rounded-xl border p-4 sm:p-5">
+    <section className="bg-card shadow-card space-y-4 rounded-xl border p-4 sm:p-5">
       <div>
         <h2 className="text-lg font-semibold">{title}</h2>
         {description && <p className="text-muted-foreground text-sm">{description}</p>}
@@ -202,6 +186,12 @@ export function Section({
       {children}
     </section>
   );
+}
+
+/** Shows why an imported entry deserves a second look (renders nothing for ordinary entries). */
+function EntryReviewNote({ id, what }: { id: string; what: string }) {
+  const { reasons, markChecked } = useEntryReview(id);
+  return <ReviewNote reasons={reasons} onChecked={markChecked} what={what} />;
 }
 
 /**
@@ -244,6 +234,7 @@ export function EntryList<T extends { id: string }>({
                 onRemove={() => onChange(removeAt(items, index))}
               />
             </div>
+            <EntryReviewNote id={item.id} what={label.toLowerCase()} />
             {renderItem(item, (patch) => onChange(replaceAt(items, index, { ...item, ...patch })))}
           </div>
         );
@@ -276,16 +267,15 @@ export function BulletsField({
 }) {
   return (
     <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">{label}</legend>
+      <legend className="text-sm leading-none font-medium">{label}</legend>
       {bullets.map((bullet, index) => (
         <div key={index} className="flex items-start gap-2">
-          <textarea
+          <Textarea
             value={bullet}
             rows={2}
             maxLength={500}
             aria-label={`${label} ${index + 1}`}
             onChange={(e) => onChange(replaceAt(bullets, index, e.target.value))}
-            className={inputClass}
           />
           <MoveControls
             label={`${label.toLowerCase()} ${index + 1}`}

@@ -2,6 +2,7 @@ import { getLlm, LlmError, LlmNotConfiguredError, type LlmClient } from "@/lib/l
 import { resumeService, type Resume } from "@/modules/resumes";
 import { importErrors } from "./errors";
 import { extractText } from "./extract";
+import type { ImportReview } from "@/shared/import-review";
 import { parseResumeText } from "./parse";
 import { detectFileKind } from "./validate";
 
@@ -9,6 +10,13 @@ export type ImportResult = {
   resume: Resume;
   /** Plain-language notes for the user, e.g. when something could not be verified. */
   warnings: string[];
+  /** What to double-check, per entry id. Used by the editor during review. */
+  review: ImportReview;
+  /**
+   * The text read from the file, returned only so the user's browser can show it beside the
+   * editor while they review. It is never saved on the server.
+   */
+  sourceText: string;
 };
 
 /** "Asha_Rao-Resume.pdf" -> "Asha Rao Resume" */
@@ -70,6 +78,6 @@ export const importService = {
           "matched to your file and were left out. Check that nothing is missing.",
       );
     }
-    return { resume, warnings };
+    return { resume, warnings, review: parsed.review, sourceText: text };
   },
 };

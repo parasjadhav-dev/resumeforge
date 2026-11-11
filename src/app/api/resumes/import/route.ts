@@ -26,11 +26,14 @@ export function POST(req: Request) {
       throw new ImportError("FILE_MISSING", "Choose a PDF or DOCX file to import.", 400);
     }
 
-    const { resume, warnings } = await importService.importResume(user.id, {
+    const { resume, warnings, review, sourceText } = await importService.importResume(user.id, {
       name: file.name,
       buffer: new Uint8Array(await file.arrayBuffer()),
     });
 
-    return NextResponse.json({ id: resume.id, title: resume.title, warnings }, { status: 201 });
+    return NextResponse.json(
+      { id: resume.id, title: resume.title, warnings, review, sourceText },
+      { status: 201 },
+    );
   });
 }

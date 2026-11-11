@@ -108,6 +108,38 @@ describe.skipIf(!process.env.DATABASE_URL)("importService", () => {
     );
   });
 
+  it("returns what the editor needs to review: flags by entry id, and the file's own text", async () => {
+    const { llm } = llmReturning(
+      reply({
+        experience: [
+          {
+            title: "Software Engineering Intern",
+            company: "Acme Corp",
+            location: "",
+            startDate: "",
+            endDate: "",
+            current: false,
+            bullets: ["Built a REST API in Node.js that reduced report generation time by 40%."],
+          },
+        ],
+      }),
+    );
+    const { resume, review, sourceText } = await importService.importResume(
+      userId,
+      { name: "review.pdf", buffer: await makeSamplePdf() },
+      { llm },
+    );
+
+    // Text read from the real PDF, for the side-by-side view.
+    expect(sourceText).toContain("Acme Corp");
+    expect(sourceText).toContain("Pune Institute of Computer Technology");
+
+    // The missing dates are flagged on the saved entry's id.
+    const entryId = resume.content.experience[0].id;
+    expect(review.entries[entryId]).toEqual(["No dates were found."]);
+    expect(review.contact).toEqual([]);
+  });
+
   it("imports a DOCX", async () => {
     const { llm } = llmReturning(reply());
     const { resume } = await importService.importResume(
