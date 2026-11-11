@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { saveResumeAction } from "@/app/resumes/[id]/edit/actions";
-import { Button } from "@/components/ui/button";
-import type { ResumeContent } from "@/shared/schema";
+import { Button, buttonVariants } from "@/components/ui/button";
+import type { ResumeContent, TemplateId } from "@/shared/schema";
 import { PreviewPanel } from "./preview-panel";
+import { TemplatePicker } from "./template-picker";
 import {
   CertificationsSection,
   ContactSection,
@@ -25,8 +26,10 @@ const AUTOSAVE_DELAY_MS = 1000;
  * - After a failed save it does not retry on its own (no error loops): it waits for the
  *   next edit, or for the user to press Save.
  */
-function useAutosave(id: string, content: ResumeContent) {
-  const json = useMemo(() => JSON.stringify(content), [content]);
+type EditorState = { content: ResumeContent; templateId: TemplateId };
+
+function useAutosave(id: string, state: EditorState) {
+  const json = useMemo(() => JSON.stringify(state), [state]);
   const [savedJson, setSavedJson] = useState(json);
   const [failedJson, setFailedJson] = useState<string>();
   const [error, setError] = useState<string>();
@@ -83,13 +86,17 @@ export function ResumeEditor({
   id,
   title,
   initial,
+  initialTemplateId,
 }: {
   id: string;
   title: string;
   initial: ResumeContent;
+  initialTemplateId: TemplateId;
 }) {
   const [content, setContent] = useState(initial);
-  const { status, error, saving, dirty, save } = useAutosave(id, content);
+  const [templateId, setTemplateId] = useState(initialTemplateId);
+  const state = useMemo(() => ({ content, templateId }), [content, templateId]);
+  const { status, error, saving, dirty, save } = useAutosave(id, state);
 
   const set =
     <K extends keyof ResumeContent>(key: K) =>
@@ -117,6 +124,19 @@ export function ResumeEditor({
             >
               {error ? "Retry save" : "Save now"}
             </Button>
+            {saving || dirty ? (
+              <Button disabled title="Available once your changes are saved">
+                Download PDF
+              </Button>
+            ) : (
+              <a
+                href={`/api/resumes/${id}/export?format=pdf`}
+                download
+                className={buttonVariants()}
+              >
+                Download PDF
+              </a>
+            )}
           </div>
         </div>
       </header>
@@ -131,6 +151,7 @@ export function ResumeEditor({
               {error}
             </p>
           )}
+          <TemplatePicker value={templateId} onChange={setTemplateId} />
           <ContactSection value={content.contact} onChange={set("contact")} />
           <SummarySection value={content.summary} onChange={set("summary")} />
           <ExperienceSection value={content.experience} onChange={set("experience")} />
@@ -142,7 +163,7 @@ export function ResumeEditor({
 
         {/* Stacks below the form on small screens; sticks beside it on large ones. */}
         <div className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
-          <PreviewPanel content={content} />
+          <PreviewPanel content={content} templateId={templateId} />
         </div>
       </div>
     </div>

@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   },
   cacheComponents: true,
   partialPrefetching: true,
+  // Uses Node APIs (fonts, streams): load natively instead of bundling.
+  serverExternalPackages: ["@react-pdf/renderer"],
   turbopack: {
     rules: {
       "*.css": {

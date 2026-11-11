@@ -25,7 +25,14 @@ beforeEach(() => {
   vi.useFakeTimers();
   saveResumeAction.mockReset();
   saveResumeAction.mockResolvedValue(ok);
-  render(<ResumeEditor id="r1" title="My Resume" initial={createEmptyResume()} />);
+  render(
+    <ResumeEditor
+      id="r1"
+      title="My Resume"
+      initial={createEmptyResume()}
+      initialTemplateId="classic"
+    />,
+  );
 });
 
 afterEach(() => {
@@ -67,6 +74,49 @@ describe("live preview", () => {
   });
 });
 
+describe("template switcher", () => {
+  const radio = (name: string) => screen.getByRole("radio", { name: new RegExp(name, "i") });
+
+  it("starts on the saved template and lists both options", () => {
+    expect((radio("Classic") as HTMLInputElement).checked).toBe(true);
+    expect((radio("Modern") as HTMLInputElement).checked).toBe(false);
+  });
+
+  it("changes the preview immediately, keeping the same content", () => {
+    type("Full name", "Asha Rao");
+    const preview = screen.getByLabelText("Resume preview");
+    expect(preview.innerHTML).toContain("text-center");
+    expect(preview.innerHTML).not.toContain("text-blue-900");
+
+    fireEvent.click(radio("Modern"));
+
+    expect(preview.innerHTML).toContain("text-blue-900");
+    expect(preview.innerHTML).not.toContain("text-center");
+    expect(within(preview).getByText("Asha Rao")).toBeTruthy();
+  });
+
+  it("autosaves the chosen template along with the content", async () => {
+    fireEvent.click(radio("Modern"));
+    expect(status()).toBe("Unsaved changes");
+
+    await advance(1000);
+    expect(saveResumeAction).toHaveBeenCalledTimes(1);
+    expect(saveResumeAction.mock.calls[0][1].templateId).toBe("modern");
+    expect(status()).toBe("All changes saved");
+  });
+
+  it("disables the PDF download until the template change is saved", async () => {
+    fireEvent.click(radio("Modern"));
+    expect(screen.getByRole("button", { name: "Download PDF" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Download PDF" })).toBeNull();
+
+    await advance(1000);
+    expect(screen.getByRole("link", { name: "Download PDF" }).getAttribute("href")).toBe(
+      "/api/resumes/r1/export?format=pdf",
+    );
+  });
+});
+
 describe("autosave", () => {
   it("does nothing until something changes", async () => {
     await advance(10_000);
@@ -83,7 +133,7 @@ describe("autosave", () => {
 
     await advance(1);
     expect(saveResumeAction).toHaveBeenCalledTimes(1);
-    const [id, content] = saveResumeAction.mock.calls[0];
+    const [id, { content }] = saveResumeAction.mock.calls[0];
     expect(id).toBe("r1");
     expect(content.contact.fullName).toBe("Asha");
     expect(status()).toBe("All changes saved");
@@ -101,7 +151,7 @@ describe("autosave", () => {
 
     await advance(1000);
     expect(saveResumeAction).toHaveBeenCalledTimes(1);
-    expect(saveResumeAction.mock.calls[0][1].contact.fullName).toBe("Asha");
+    expect(saveResumeAction.mock.calls[0][1].content.contact.fullName).toBe("Asha");
   });
 
   it("never runs two saves at once, and saves edits made mid-save afterwards", async () => {
@@ -122,7 +172,7 @@ describe("autosave", () => {
 
     await advance(1000);
     expect(saveResumeAction).toHaveBeenCalledTimes(2);
-    expect(saveResumeAction.mock.calls[1][1].contact.fullName).toBe("Asha Rao");
+    expect(saveResumeAction.mock.calls[1][1].content.contact.fullName).toBe("Asha Rao");
     expect(status()).toBe("All changes saved");
   });
 

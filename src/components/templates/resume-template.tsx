@@ -10,11 +10,29 @@ import {
   visibleProjects,
   visibleSkills,
 } from "@/shared/resume-format";
-import type { ResumeContent } from "@/shared/schema";
+import type { ResumeContent, TemplateId } from "@/shared/schema";
 
-function Heading({ children }: { children: string }) {
+/** Class names per template. Structure and text are identical; only the look differs. */
+const THEMES = {
+  classic: {
+    header: "text-center",
+    name: "text-xl font-bold",
+    contact: "",
+    heading: "border-b border-black text-black tracking-wide",
+  },
+  modern: {
+    header: "text-left",
+    name: "text-2xl font-bold text-blue-900",
+    contact: "text-neutral-700",
+    heading: "border-b-2 border-blue-900 text-blue-900 tracking-wider",
+  },
+} satisfies Record<TemplateId, Record<string, string>>;
+
+type Theme = (typeof THEMES)[TemplateId];
+
+function Heading({ theme, children }: { theme: Theme; children: string }) {
   return (
-    <h2 className="mt-3 mb-1 border-b border-black pb-0.5 text-[11px] font-bold tracking-wide uppercase">
+    <h2 className={`mt-3 mb-1 pb-0.5 text-[11px] font-bold uppercase ${theme.heading}`}>
       {children}
     </h2>
   );
@@ -48,10 +66,17 @@ const join = (...parts: string[]) =>
     .join(", ");
 
 /**
- * Template 1 "Classic": single column, standard headings, no tables, images or icons.
- * Always rendered as black text on white paper, regardless of the app theme.
+ * Single-column, ATS-friendly resume (standard headings, no tables, images or icons).
+ * Always rendered as dark text on white paper, regardless of the app theme.
  */
-export function ClassicTemplate({ content }: { content: ResumeContent }) {
+export function ResumeTemplate({
+  content,
+  templateId = "classic",
+}: {
+  content: ResumeContent;
+  templateId?: TemplateId;
+}) {
+  const theme = THEMES[templateId] ?? THEMES.classic;
   const { contact } = content;
   const contactLine = contactItems(contact).join("  |  ");
   const experience = visibleExperience(content.experience);
@@ -69,22 +94,22 @@ export function ClassicTemplate({ content }: { content: ResumeContent }) {
   }
 
   return (
-    <article className="font-sans text-[11px] leading-snug text-black">
-      {contact.fullName.trim() && (
-        <h1 className="text-center text-xl font-bold">{contact.fullName.trim()}</h1>
-      )}
-      {contactLine && <p className="mt-0.5 text-center">{contactLine}</p>}
+    <article className="font-sans text-[11px] leading-snug text-neutral-950">
+      <header className={theme.header}>
+        {contact.fullName.trim() && <h1 className={theme.name}>{contact.fullName.trim()}</h1>}
+        {contactLine && <p className={`mt-0.5 ${theme.contact}`}>{contactLine}</p>}
+      </header>
 
       {content.summary.trim() && (
         <section>
-          <Heading>Summary</Heading>
+          <Heading theme={theme}>Summary</Heading>
           <p className="whitespace-pre-line">{content.summary.trim()}</p>
         </section>
       )}
 
       {experience.length > 0 && (
         <section>
-          <Heading>Experience</Heading>
+          <Heading theme={theme}>Experience</Heading>
           <div className="space-y-2">
             {experience.map((e) => (
               <div key={e.id}>
@@ -102,7 +127,7 @@ export function ClassicTemplate({ content }: { content: ResumeContent }) {
 
       {education.length > 0 && (
         <section>
-          <Heading>Education</Heading>
+          <Heading theme={theme}>Education</Heading>
           <div className="space-y-2">
             {education.map((e) => (
               <div key={e.id}>
@@ -127,7 +152,7 @@ export function ClassicTemplate({ content }: { content: ResumeContent }) {
 
       {projects.length > 0 && (
         <section>
-          <Heading>Projects</Heading>
+          <Heading theme={theme}>Projects</Heading>
           <div className="space-y-2">
             {projects.map((p) => (
               <div key={p.id}>
@@ -142,7 +167,7 @@ export function ClassicTemplate({ content }: { content: ResumeContent }) {
 
       {skills.length > 0 && (
         <section>
-          <Heading>Skills</Heading>
+          <Heading theme={theme}>Skills</Heading>
           <ul className="space-y-0.5">
             {skills.map((g) => (
               <li key={g.id}>{skillLine(g)}</li>
@@ -153,7 +178,7 @@ export function ClassicTemplate({ content }: { content: ResumeContent }) {
 
       {certifications.length > 0 && (
         <section>
-          <Heading>Certifications</Heading>
+          <Heading theme={theme}>Certifications</Heading>
           <ul className="space-y-0.5">
             {certifications.map((c) => (
               <li key={c.id}>

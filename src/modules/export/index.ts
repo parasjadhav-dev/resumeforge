@@ -1,1 +1,1 @@
-export {};
+export { pdfFileName, renderResumePdf } from "./service";
