@@ -1,5 +1,7 @@
 import { Document, Font, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import type { ReactNode } from "react";
 import {
+  breakLongWordsDeep,
   cleanBullets,
   contactItems,
   formatDateRange,
@@ -99,24 +101,15 @@ const join = (...parts: string[]) =>
     .join(", ");
 
 function Heading({ s, children }: { s: Styles; children: string }) {
-  // minPresenceAhead keeps a heading from being stranded at the bottom of a page.
-  return (
-    <Text style={s.heading} minPresenceAhead={50}>
-      {children}
-    </Text>
-  );
+  return <Text style={s.heading}>{children}</Text>;
 }
 
-function Bullets({ s, items }: { s: Styles; items: string[] }) {
+function Bullet({ s, text }: { s: Styles; text: string }) {
   return (
-    <>
-      {cleanBullets(items).map((text, i) => (
-        <View key={i} style={s.bulletRow} wrap={false}>
-          <Text style={s.bulletMark}>•</Text>
-          <Text style={s.bulletText}>{text}</Text>
-        </View>
-      ))}
-    </>
+    <View style={s.bulletRow} wrap={false}>
+      <Text style={s.bulletMark}>•</Text>
+      <Text style={s.bulletText}>{text}</Text>
+    </View>
   );
 }
 
@@ -129,9 +122,58 @@ function Row({ s, left, right }: { s: Styles; left: string; right?: string }) {
   );
 }
 
+/**
+ * One entry (job, degree, project). The section heading (when given), the entry's header lines
+ * and its first bullet form one unbreakable group, so a heading is never left alone at the
+ * bottom of a page and an entry header is never separated from its first bullet.
+ */
+function Entry({
+  s,
+  heading,
+  head,
+  bullets,
+}: {
+  s: Styles;
+  heading?: string;
+  head: ReactNode;
+  bullets: string[];
+}) {
+  const [first, ...rest] = cleanBullets(bullets);
+  return (
+    <View style={s.entry}>
+      <View wrap={false}>
+        {heading ? <Heading s={s}>{heading}</Heading> : null}
+        {head}
+        {first ? <Bullet s={s} text={first} /> : null}
+      </View>
+      {rest.map((text, i) => (
+        <Bullet key={i} s={s} text={text} />
+      ))}
+    </View>
+  );
+}
+
+/** A section made of plain lines (skills, certifications): heading stays with the first line. */
+function Lines({ s, heading, lines }: { s: Styles; heading: string; lines: string[] }) {
+  const [first, ...rest] = lines;
+  return (
+    <View>
+      <View wrap={false}>
+        <Heading s={s}>{heading}</Heading>
+        <Text style={s.line}>{first}</Text>
+      </View>
+      {rest.map((line, i) => (
+        <Text key={i} style={s.line}>
+          {line}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
 /** Single-column, ATS-friendly resume as a PDF with real, selectable text. */
 export function ResumePdfDocument({
-  content,
+  content: rawContent,
   title,
   templateId = "classic",
 }: {
@@ -140,6 +182,8 @@ export function ResumePdfDocument({
   templateId?: TemplateId;
 }) {
   const s = makeStyles(THEMES[templateId] ?? THEMES.classic);
+  // Words longer than a line cannot wrap and would be clipped, so give them break points.
+  const content = breakLongWordsDeep(rawContent);
   const { contact } = content;
   const name = contact.fullName.trim();
   const contactLine = contactItems(contact).join("  |  ");
@@ -156,34 +200,39 @@ export function ResumePdfDocument({
         {contactLine ? <Text style={s.contact}>{contactLine}</Text> : null}
 
         {content.summary.trim() ? (
-          <View>
+          <View wrap={false}>
             <Heading s={s}>Summary</Heading>
             <Text>{content.summary.trim()}</Text>
           </View>
         ) : null}
 
-        {experience.length > 0 ? (
-          <View>
-            <Heading s={s}>Experience</Heading>
-            {experience.map((e) => (
-              <View key={e.id} style={s.entry}>
+        {experience.map((e, i) => (
+          <Entry
+            key={e.id}
+            s={s}
+            heading={i === 0 ? "Experience" : undefined}
+            bullets={e.bullets}
+            head={
+              <>
                 <Row
                   s={s}
                   left={join(e.title, e.company) || "Untitled role"}
                   right={formatDateRange(e.startDate, e.endDate, e.current)}
                 />
                 {e.location.trim() ? <Text style={s.italic}>{e.location.trim()}</Text> : null}
-                <Bullets s={s} items={e.bullets} />
-              </View>
-            ))}
-          </View>
-        ) : null}
+              </>
+            }
+          />
+        ))}
 
-        {education.length > 0 ? (
-          <View>
-            <Heading s={s}>Education</Heading>
-            {education.map((e) => (
-              <View key={e.id} style={s.entry}>
+        {education.map((e, i) => (
+          <Entry
+            key={e.id}
+            s={s}
+            heading={i === 0 ? "Education" : undefined}
+            bullets={e.details}
+            head={
+              <>
                 <Row
                   s={s}
                   left={e.institution.trim() || "Education"}
@@ -197,47 +246,38 @@ export function ResumePdfDocument({
                   </Text>
                 ) : null}
                 {e.location.trim() ? <Text style={s.italic}>{e.location.trim()}</Text> : null}
-                <Bullets s={s} items={e.details} />
-              </View>
-            ))}
-          </View>
-        ) : null}
+              </>
+            }
+          />
+        ))}
 
-        {projects.length > 0 ? (
-          <View>
-            <Heading s={s}>Projects</Heading>
-            {projects.map((p) => (
-              <View key={p.id} style={s.entry}>
+        {projects.map((p, i) => (
+          <Entry
+            key={p.id}
+            s={s}
+            heading={i === 0 ? "Projects" : undefined}
+            bullets={p.bullets}
+            head={
+              <>
                 <Row s={s} left={p.name.trim() || "Project"} right={p.link.trim()} />
                 {p.technologies.length > 0 ? (
                   <Text style={s.italic}>{p.technologies.join(", ")}</Text>
                 ) : null}
-                <Bullets s={s} items={p.bullets} />
-              </View>
-            ))}
-          </View>
-        ) : null}
+              </>
+            }
+          />
+        ))}
 
-        {skills.length > 0 ? (
-          <View>
-            <Heading s={s}>Skills</Heading>
-            {skills.map((g) => (
-              <Text key={g.id} style={s.line}>
-                {skillLine(g)}
-              </Text>
-            ))}
-          </View>
-        ) : null}
+        {skills.length > 0 ? <Lines s={s} heading="Skills" lines={skills.map(skillLine)} /> : null}
 
         {certifications.length > 0 ? (
-          <View>
-            <Heading s={s}>Certifications</Heading>
-            {certifications.map((c) => (
-              <Text key={c.id} style={s.line}>
-                {[join(c.name, c.issuer), c.date.trim()].filter(Boolean).join(" | ")}
-              </Text>
-            ))}
-          </View>
+          <Lines
+            s={s}
+            heading="Certifications"
+            lines={certifications.map((c) =>
+              [join(c.name, c.issuer), c.date.trim()].filter(Boolean).join(" | "),
+            )}
+          />
         ) : null}
       </Page>
     </Document>

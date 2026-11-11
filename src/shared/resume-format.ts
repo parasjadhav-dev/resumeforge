@@ -75,3 +75,44 @@ export function isResumeEmpty(content: ResumeContent): boolean {
     visibleCertifications(content.certifications).length === 0
   );
 }
+
+/**
+ * Inserts line breaks into words longer than `max` characters (long URLs, tokens).
+ * Renderers cannot wrap a word that has no spaces, so without this it runs off the page and
+ * the overflow is silently lost. Prefers breaking after "/", "-", "_", ".", "&", "=" or "?".
+ */
+export function softBreakLongWords(text: string, max = 60): string {
+  return text.replace(new RegExp(String.raw`\S{${max + 1},}`, "g"), (word) => {
+    const parts: string[] = [];
+    let rest = word;
+    while (rest.length > max) {
+      const window = rest.slice(0, max);
+      const natural = Math.max(
+        window.lastIndexOf("/"),
+        window.lastIndexOf("-"),
+        window.lastIndexOf("_"),
+        window.lastIndexOf("."),
+        window.lastIndexOf("&"),
+        window.lastIndexOf("="),
+        window.lastIndexOf("?"),
+      );
+      const cut = natural >= max / 2 ? natural + 1 : max;
+      parts.push(rest.slice(0, cut));
+      rest = rest.slice(cut);
+    }
+    parts.push(rest);
+    return parts.join("\n");
+  });
+}
+
+/** Applies `softBreakLongWords` to every string in a resume-shaped value, keeping its shape. */
+export function breakLongWordsDeep<T>(value: T, max = 60): T {
+  if (typeof value === "string") return softBreakLongWords(value, max) as T;
+  if (Array.isArray(value)) return value.map((v) => breakLongWordsDeep(v, max)) as T;
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, k === "id" ? v : breakLongWordsDeep(v, max)]),
+    ) as T;
+  }
+  return value;
+}

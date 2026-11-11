@@ -117,6 +117,38 @@ describe("template switcher", () => {
   });
 });
 
+describe("unsupported PDF characters", () => {
+  const download = () => screen.getByRole("button", { name: "Download PDF" }) as HTMLButtonElement;
+
+  it("shows no warning for ordinary and accented text", () => {
+    type("Full name", "José Müller-O’Brien");
+    expect(screen.queryByTestId("unsupported-chars")).toBeNull();
+  });
+
+  it("warns and blocks the download when text can't be rendered in the PDF", async () => {
+    type("Full name", "आशा राव");
+    const warning = screen.getByTestId("unsupported-chars");
+    expect(warning.textContent).toContain("आ");
+    expect(warning.textContent).toMatch(/PDF font cannot display/);
+
+    await advance(1000); // even once saved, the download stays blocked
+    expect(status()).toBe("All changes saved");
+    expect(download().disabled).toBe(true);
+    expect(download().title).toMatch(/unsupported characters/i);
+    expect(screen.queryByRole("link", { name: "Download PDF" })).toBeNull();
+  });
+
+  it("clears the warning and re-enables the download once the text is fixed", async () => {
+    type("Full name", "Asha 🚀");
+    expect(screen.getByTestId("unsupported-chars")).toBeTruthy();
+
+    type("Full name", "Asha Rao");
+    expect(screen.queryByTestId("unsupported-chars")).toBeNull();
+    await advance(1000);
+    expect(screen.getByRole("link", { name: "Download PDF" })).toBeTruthy();
+  });
+});
+
 describe("autosave", () => {
   it("does nothing until something changes", async () => {
     await advance(10_000);

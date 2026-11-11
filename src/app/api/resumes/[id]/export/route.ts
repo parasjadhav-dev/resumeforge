@@ -3,6 +3,7 @@ import { handle } from "@/lib/api";
 import { requireUser } from "@/lib/session";
 import { pdfFileName, renderResumePdf } from "@/modules/export";
 import { resumeService } from "@/modules/resumes";
+import { findUnsupportedInResume, unsupportedCharsMessage } from "@/shared/pdf-charset";
 
 export function GET(req: Request, ctx: RouteContext<"/api/resumes/[id]/export">) {
   return handle(async () => {
@@ -15,6 +16,16 @@ export function GET(req: Request, ctx: RouteContext<"/api/resumes/[id]/export">)
     }
 
     const resume = await resumeService.get(user.id, id);
+
+    // The PDF font only covers Western characters; anything else would be silently garbled.
+    const unsupported = findUnsupportedInResume(resume.content);
+    if (unsupported.length > 0) {
+      return NextResponse.json(
+        { error: unsupportedCharsMessage(unsupported), characters: unsupported },
+        { status: 422 },
+      );
+    }
+
     const pdf = await renderResumePdf(resume.content, {
       templateId: resume.templateId,
       title: resume.title,

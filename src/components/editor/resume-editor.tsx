@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { saveResumeAction } from "@/app/resumes/[id]/edit/actions";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { findUnsupportedInResume, unsupportedCharsMessage } from "@/shared/pdf-charset";
 import type { ResumeContent, TemplateId } from "@/shared/schema";
 import { PreviewPanel } from "./preview-panel";
 import { TemplatePicker } from "./template-picker";
@@ -87,16 +88,21 @@ export function ResumeEditor({
   title,
   initial,
   initialTemplateId,
+  importNotice,
 }: {
   id: string;
   title: string;
   initial: ResumeContent;
   initialTemplateId: TemplateId;
+  /** Set when this resume was just imported from a file. */
+  importNotice?: { itemsLeftOut: boolean };
 }) {
+  const [noticeOpen, setNoticeOpen] = useState(Boolean(importNotice));
   const [content, setContent] = useState(initial);
   const [templateId, setTemplateId] = useState(initialTemplateId);
   const state = useMemo(() => ({ content, templateId }), [content, templateId]);
   const { status, error, saving, dirty, save } = useAutosave(id, state);
+  const unsupported = useMemo(() => findUnsupportedInResume(content), [content]);
 
   const set =
     <K extends keyof ResumeContent>(key: K) =>
@@ -124,8 +130,15 @@ export function ResumeEditor({
             >
               {error ? "Retry save" : "Save now"}
             </Button>
-            {saving || dirty ? (
-              <Button disabled title="Available once your changes are saved">
+            {saving || dirty || unsupported.length > 0 ? (
+              <Button
+                disabled
+                title={
+                  unsupported.length > 0
+                    ? "Fix the unsupported characters first"
+                    : "Available once your changes are saved"
+                }
+              >
                 Download PDF
               </Button>
             ) : (
@@ -149,6 +162,38 @@ export function ResumeEditor({
               className="text-destructive rounded-lg border border-current p-3 text-sm"
             >
               {error}
+            </p>
+          )}
+          {importNotice && noticeOpen && (
+            <div
+              role="status"
+              data-testid="import-notice"
+              className="flex items-start justify-between gap-3 rounded-lg border border-blue-600 bg-blue-50 p-3 text-sm text-blue-950 dark:bg-blue-950 dark:text-blue-50"
+            >
+              <p>
+                <strong>Imported from your file.</strong> AI can make mistakes, so check every
+                section against your original before you use this resume.
+                {importNotice.itemsLeftOut &&
+                  " Some items could not be matched to your file and were left out, so look for anything missing."}
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setNoticeOpen(false)}
+                aria-label="Dismiss import notice"
+              >
+                Dismiss
+              </Button>
+            </div>
+          )}
+          {unsupported.length > 0 && (
+            <p
+              role="alert"
+              data-testid="unsupported-chars"
+              className="rounded-lg border border-amber-600 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950 dark:text-amber-50"
+            >
+              {unsupportedCharsMessage(unsupported)}
             </p>
           )}
           <TemplatePicker value={templateId} onChange={setTemplateId} />

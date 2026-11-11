@@ -94,7 +94,7 @@ export function ResumeTemplate({
   }
 
   return (
-    <article className="font-sans text-[11px] leading-snug text-neutral-950">
+    <article className="font-sans text-[11px] leading-snug break-words text-neutral-950">
       <header className={theme.header}>
         {contact.fullName.trim() && <h1 className={theme.name}>{contact.fullName.trim()}</h1>}
         {contactLine && <p className={`mt-0.5 ${theme.contact}`}>{contactLine}</p>}

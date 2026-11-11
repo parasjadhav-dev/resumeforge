@@ -5,8 +5,14 @@ import { requireUser } from "@/lib/session";
 import { NotFoundError, resumeService } from "@/modules/resumes";
 import { resolveTemplateId } from "@/shared/templates";
 
-async function EditorLoader({ params }: { params: Promise<{ id: string }> }) {
+type Props = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ imported?: string; check?: string }>;
+};
+
+async function EditorLoader({ params, searchParams }: Props) {
   const { id } = await params;
+  const { imported, check } = await searchParams;
   const user = await requireUser();
 
   const resume = await resumeService.get(user.id, id).catch((err: unknown) => {
@@ -20,11 +26,12 @@ async function EditorLoader({ params }: { params: Promise<{ id: string }> }) {
       title={resume.title}
       initial={resume.content}
       initialTemplateId={resolveTemplateId(resume.templateId)}
+      importNotice={imported === "1" ? { itemsLeftOut: check === "1" } : undefined}
     />
   );
 }
 
-export default function EditResumePage({ params }: { params: Promise<{ id: string }> }) {
+export default function EditResumePage({ params, searchParams }: Props) {
   return (
     <Suspense
       fallback={
@@ -33,7 +40,7 @@ export default function EditResumePage({ params }: { params: Promise<{ id: strin
         </div>
       }
     >
-      <EditorLoader params={params} />
+      <EditorLoader params={params} searchParams={searchParams} />
     </Suspense>
   );
 }

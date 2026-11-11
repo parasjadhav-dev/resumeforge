@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { signOutAction } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
+import { ImportResumeForm } from "./import-resume-form";
 import { NewResumeForm } from "./new-resume-form";
 import { ResumeList } from "./resume-list";
 
@@ -30,6 +31,7 @@ export default function DashboardPage() {
         </Suspense>
       </header>
       <NewResumeForm />
+      <ImportResumeForm />
       <Suspense
         fallback={<div className="bg-muted h-16 animate-pulse rounded-lg" aria-label="Loading" />}
       >
