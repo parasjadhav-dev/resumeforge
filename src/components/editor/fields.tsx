@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { moveItem, parseTags, removeAt, replaceAt } from "@/lib/array";
+import { cn } from "@/lib/utils";
+import type { EditorSectionKey } from "@/shared/resume-progress";
+import { sectionDomId, StatusDot, useEditorUi } from "./editor-ui";
 import { ReviewNote, useEntryReview } from "./review-context";
 
 const MAX_BULLETS = 15; // matches the resume schema
@@ -167,23 +170,66 @@ export function MoveControls({ label, index, count, onMove, onRemove }: MoveCont
   );
 }
 
-/** A titled section card. */
+/**
+ * A collapsible section card. The whole header toggles it. Collapsed, it shows a one-line summary
+ * of what is inside; its content stays on the page (hidden) so nothing typed is ever lost.
+ */
 export function Section({
+  id,
   title,
   description,
   children,
 }: {
+  id: EditorSectionKey;
   title: string;
   description?: string;
   children: ReactNode;
 }) {
+  const { meta, isOpen, toggle } = useEditorUi();
+  const open = isOpen(id);
+  const domId = sectionDomId(id);
+  const showStatus = id !== "template";
+
   return (
-    <section className="bg-card shadow-card space-y-4 rounded-xl border p-4 sm:p-5">
-      <div>
-        <h2 className="text-lg font-semibold">{title}</h2>
-        {description && <p className="text-muted-foreground text-sm">{description}</p>}
+    <section
+      id={domId}
+      aria-labelledby={`${domId}-title`}
+      className="bg-card shadow-card scroll-mt-[calc(var(--editor-header)+3.5rem)] rounded-xl border"
+    >
+      <div className="relative flex items-center gap-3 p-4 sm:p-5">
+        {showStatus && <StatusDot done={meta[id].done} />}
+        <div className="min-w-0 flex-1">
+          <h2 id={`${domId}-title`} className="text-lg font-semibold">
+            {/* The button is stretched over the whole header (after:inset-0), so all of it is clickable. */}
+            <button
+              type="button"
+              aria-expanded={open}
+              aria-controls={`${domId}-panel`}
+              aria-describedby={`${domId}-note`}
+              onClick={() => toggle(id)}
+              className="rounded-sm text-left after:absolute after:inset-0 after:rounded-xl"
+            >
+              {title}
+              {showStatus && (
+                <span className="sr-only">{meta[id].done ? ", has content" : ", empty"}</span>
+              )}
+            </button>
+          </h2>
+          <p id={`${domId}-note`} className="text-muted-foreground truncate text-sm">
+            {open ? description : meta[id].summary}
+          </p>
+        </div>
+        <ChevronDown
+          aria-hidden="true"
+          className={cn(
+            "text-muted-foreground size-5 shrink-0 transition-transform motion-reduce:transition-none",
+            open && "rotate-180",
+          )}
+        />
       </div>
-      {children}
+      <div id={`${domId}-panel`} hidden={!open} className="space-y-4 px-4 pb-4 sm:px-5 sm:pb-5">
+        {children}
+      </div>
     </section>
   );
 }
@@ -206,6 +252,7 @@ export function EntryList<T extends { id: string }>({
   addLabel,
   emptyText,
   max,
+  subtitle,
   renderItem,
 }: {
   noun: string;
@@ -215,6 +262,8 @@ export function EntryList<T extends { id: string }>({
   addLabel: string;
   emptyText: string;
   max: number;
+  /** A short line describing an entry (e.g. "Intern · Acme"), shown beside its label. */
+  subtitle?: (item: T) => string;
   renderItem: (item: T, update: (patch: Partial<T>) => void) => ReactNode;
 }) {
   return (
@@ -222,10 +271,21 @@ export function EntryList<T extends { id: string }>({
       {items.length === 0 && <p className="text-muted-foreground text-sm">{emptyText}</p>}
       {items.map((item, index) => {
         const label = `${noun} ${index + 1}`;
+        const detail = subtitle?.(item).trim();
         return (
-          <div key={item.id} className="space-y-3 rounded-lg border p-3">
+          <div key={item.id} className="bg-muted/30 space-y-3 rounded-lg border p-3 sm:p-4">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-medium">{label}</h3>
+              <div className="flex min-w-0 items-baseline gap-2">
+                <h3 className="shrink-0 text-sm font-semibold">{label}</h3>
+                {detail && (
+                  <p
+                    className="text-muted-foreground truncate text-sm"
+                    data-testid="entry-subtitle"
+                  >
+                    {detail}
+                  </p>
+                )}
+              </div>
               <MoveControls
                 label={label}
                 index={index}

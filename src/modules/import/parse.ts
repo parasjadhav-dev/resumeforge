@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { LlmClient } from "@/lib/llm";
+import { makeGrounder, makeGroundingRatio, tokenize } from "@/shared/grounding";
 import type { ImportReview } from "@/shared/import-review";
 import { cleanBullets } from "@/shared/resume-format";
 import { resumeContentSchema, type ResumeContent } from "@/shared/schema";
@@ -69,31 +70,8 @@ export const buildParsePrompt = (text: string) =>
 
 // ---------- grounding: drop anything the model produced that is not in the source ----------
 
-const tokenize = (s: string) => s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
-
-/** What share (0 to 1) of a text's words appear in the source document. */
-export function makeGroundingRatio(source: string) {
-  const known = new Set(tokenize(source));
-  return (value: string): number => {
-    const tokens = tokenize(value);
-    if (tokens.length === 0) return 1;
-    return tokens.filter((t) => known.has(t)).length / tokens.length;
-  };
-}
-
-/**
- * Returns a checker: is this text actually present in the source document?
- * Short values (names, skills) must match fully; longer text may differ slightly
- * (the model may repair line breaks), so most of its words must appear in the source.
- */
-export function makeGrounder(source: string) {
-  const ratio = makeGroundingRatio(source);
-  return (value: string): boolean => {
-    const tokens = tokenize(value);
-    if (tokens.length === 0) return true;
-    return tokens.length <= 3 ? ratio(value) === 1 : ratio(value) >= 0.7;
-  };
-}
+// The checkers are shared with other AI features; re-exported so existing imports keep working.
+export { makeGrounder, makeGroundingRatio };
 
 const ONGOING = /^(present|current|now|ongoing|till date|to date|today)$/i;
 

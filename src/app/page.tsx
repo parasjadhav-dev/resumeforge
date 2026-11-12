@@ -116,7 +116,7 @@ const AI_RULES: { Icon: LucideIcon; title: string; text: string }[] = [
 
 export default function LandingPage() {
   return (
-    <div className="bg-brand-glow flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col">
       <header className="bg-background/80 sticky top-0 z-30 border-b backdrop-blur-md">
         <PageContainer className="flex h-14 items-center justify-between gap-4">
           <Logo href="/" />
@@ -138,7 +138,7 @@ export default function LandingPage() {
             </Badge>
             <h1 className="text-4xl font-semibold text-balance sm:text-5xl lg:text-6xl">
               A resume that gets past the robots,{" "}
-              <span className="text-primary">and stays true to you.</span>
+              <span className="text-brand">and stays true to you.</span>
             </h1>
             <p className="text-muted-foreground max-w-xl text-lg text-pretty">
               Build an ATS-friendly resume from scratch, or upload the one you have. ResumeForge

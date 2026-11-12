@@ -2,6 +2,7 @@
 
 import { ChevronDown, LayoutDashboard, LogOut } from "lucide-react";
 import Link from "next/link";
+import { useTheme } from "next-themes";
 import { useRef } from "react";
 import {
   DropdownMenu,
@@ -9,6 +10,8 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -36,6 +39,7 @@ export function UserMenu({
   signOut: () => Promise<void>;
 }) {
   const signOutForm = useRef<HTMLFormElement>(null);
+  const { theme, setTheme } = useTheme();
 
   return (
     <>
@@ -71,6 +75,19 @@ export function UserMenu({
             <LayoutDashboard aria-hidden="true" />
             Your resumes
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Theme</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={theme ?? "system"}
+              onValueChange={(value) => setTheme(String(value))}
+            >
+              <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="system">System</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => signOutForm.current?.requestSubmit()}>
             <LogOut aria-hidden="true" />
             Sign out

@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { BrandMarkSvg } from "@/lib/brand-art";
+import { BRAND, BrandMarkSvg } from "@/lib/brand-art";
 import { SITE_NAME, SITE_TAGLINE } from "@/lib/site";
 
 export const alt = `${SITE_NAME}: ${SITE_TAGLINE}`;
@@ -17,18 +17,21 @@ export default function OpenGraphImage() {
         width: "100%",
         height: "100%",
         padding: 72,
-        color: "#ffffff",
-        background: "linear-gradient(135deg, #312e81 0%, #4f46e5 55%, #7c3aed 100%)",
+        color: "#10171f",
+        background: "#f8f5f0",
+        borderTop: `14px solid ${BRAND.navy}`,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
         <BrandMarkSvg size={72} />
         <div style={{ display: "flex", fontSize: 44, fontWeight: 700, letterSpacing: -1 }}>
-          {SITE_NAME}
+          Resume
+          <span style={{ color: BRAND.copper }}>Forge</span>
         </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <div style={{ display: "flex", width: 96, height: 6, background: BRAND.copper }} />
         <div
           style={{
             display: "flex",
@@ -41,7 +44,7 @@ export default function OpenGraphImage() {
         >
           Resumes that get past the robots.
         </div>
-        <div style={{ display: "flex", fontSize: 34, color: "#c7d2fe", maxWidth: 860 }}>
+        <div style={{ display: "flex", fontSize: 34, color: "#4a5565", maxWidth: 860 }}>
           Build an ATS-friendly resume, or upload yours and tailor it to any job. The AI never
           invents experience.
         </div>

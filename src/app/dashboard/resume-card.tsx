@@ -1,7 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +27,20 @@ import {
 import { ResumeThumb } from "./resume-thumb";
 
 type Props = { id: string; title: string; templateId: string; updatedAt: string };
+type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
+
+/** Runs a server action and tells the user the outcome with a toast. */
+function withToast(action: Action, onSuccess?: () => void): Action {
+  return async (prev, formData) => {
+    const result = await action(prev, formData);
+    if (result.error) toast.error(result.error);
+    else {
+      if (result.message) toast.success(result.message);
+      onSuccess?.();
+    }
+    return result;
+  };
+}
 
 export function ResumeCard({ id, title, templateId, updatedAt }: Props) {
   const template = resolveTemplateId(templateId);
@@ -23,25 +48,24 @@ export function ResumeCard({ id, title, templateId, updatedAt }: Props) {
   const editHref = `/resumes/${id}/edit`;
 
   const [renaming, setRenaming] = useState(false);
-  const [renameState, renameAction, renamePending] = useActionState<ActionState, FormData>(
-    async (prev, formData) => {
-      const result = await renameResumeAction(prev, formData);
-      if (!result.error) setRenaming(false);
-      return result;
-    },
-    {},
-  );
-  const [dupState, dupAction, dupPending] = useActionState<ActionState, FormData>(
-    duplicateResumeAction,
-    {},
-  );
-  const [delState, delAction, delPending] = useActionState<ActionState, FormData>(
-    deleteResumeAction,
-    {},
-  );
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const error = renameState.error ?? dupState.error ?? delState.error;
-  const busy = renamePending || dupPending || delPending;
+  const [, renameAction, renamePending] = useActionState(
+    withToast(renameResumeAction, () => setRenaming(false)),
+    {},
+  );
+  const [, dupAction, dupPending] = useActionState(withToast(duplicateResumeAction), {});
+  const [, deleteAction, deletePending] = useActionState(withToast(deleteResumeAction), {});
+  const [, startDelete] = useTransition();
+
+  const busy = renamePending || dupPending || deletePending;
+
+  function confirmDelete() {
+    setConfirmingDelete(false);
+    const formData = new FormData();
+    formData.set("id", id);
+    startDelete(() => deleteAction(formData));
+  }
 
   return (
     <li className="bg-card shadow-card hover:shadow-pop flex flex-col overflow-hidden rounded-xl border transition-shadow">
@@ -102,28 +126,34 @@ export function ResumeCard({ id, title, templateId, updatedAt }: Props) {
                 {dupPending ? "Duplicating…" : "Duplicate"}
               </Button>
             </form>
-            <form
-              action={delAction}
-              onSubmit={(e) => {
-                if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) {
-                  e.preventDefault();
-                }
-              }}
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={busy}
+              onClick={() => setConfirmingDelete(true)}
             >
-              <input type="hidden" name="id" value={id} />
-              <Button type="submit" size="sm" variant="destructive" disabled={busy}>
-                {delPending ? "Deleting…" : "Delete"}
-              </Button>
-            </form>
+              {deletePending ? "Deleting…" : "Delete"}
+            </Button>
           </div>
         )}
-
-        {error && (
-          <p role="alert" className="text-destructive text-sm">
-            {error}
-          </p>
-        )}
       </div>
+
+      <AlertDialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete &ldquo;{title}&rdquo;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes the resume and everything in it. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction variant="danger" onClick={confirmDelete}>
+              Delete resume
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </li>
   );
 }

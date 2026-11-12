@@ -25,7 +25,7 @@ export function PreviewPanel({
     <aside
       aria-label="Resume preview"
       tabIndex={0}
-      className="space-y-3 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5.5rem)] lg:overflow-y-auto"
+      className="space-y-3 lg:sticky lg:top-[calc(var(--editor-header)+1rem)] lg:max-h-[calc(100vh-var(--editor-header)-2rem)] lg:overflow-y-auto"
     >
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Preview</h2>

@@ -13,7 +13,7 @@ export function TemplatePicker({
   onChange: (id: TemplateId) => void;
 }) {
   return (
-    <Section title="Template" description="Both are single-column and ATS-friendly.">
+    <Section id="template" title="Template" description="Both are single-column and ATS-friendly.">
       <fieldset className="grid gap-3 sm:grid-cols-2">
         <legend className="sr-only">Resume template</legend>
         {TEMPLATES.map((t) => (

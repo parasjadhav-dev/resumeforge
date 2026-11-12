@@ -19,6 +19,10 @@ const actions = vi.hoisted(() => ({
 vi.mock("@/app/dashboard/actions", () => actions);
 vi.mock("@/app/resumes/[id]/edit/actions", () => ({ saveResumeAction: vi.fn() }));
 
+// The toast library is replaced so tests can check exactly what the user would be told.
+const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("sonner", () => ({ toast: toasts, Toaster: () => null }));
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -143,6 +147,8 @@ describe("ResumeCard", () => {
 
   beforeEach(() => {
     for (const fn of Object.values(actions)) fn.mockReset().mockResolvedValue({});
+    toasts.success.mockReset();
+    toasts.error.mockReset();
   });
 
   it("shows the title as a link to the editor, with template and date", () => {
@@ -195,26 +201,88 @@ describe("ResumeCard", () => {
     expect((actions.duplicateResumeAction.mock.calls[0][1] as FormData).get("id")).toBe("r1");
   });
 
-  it("asks before deleting, and only deletes when confirmed", async () => {
+  it("asks in a dialog before deleting, naming the resume, and does nothing if cancelled", async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm");
+    renderCard();
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(/Delete .Backend Resume.\?/)).toBeTruthy();
+    expect(within(dialog).getByText(/cannot be undone/i)).toBeTruthy();
+    expect(actions.deleteResumeAction).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole("button", { name: "Keep it" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(actions.deleteResumeAction).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled(); // the browser's own box is no longer used
+  });
+
+  it("deletes only after the dialog is confirmed, then says so", async () => {
+    actions.deleteResumeAction.mockResolvedValue({ message: 'Deleted "Backend Resume".' });
     const user = userEvent.setup();
     renderCard();
 
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     await user.click(screen.getByRole("button", { name: "Delete" }));
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Backend Resume"));
-    expect(actions.deleteResumeAction).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole("button", { name: "Delete resume" }));
 
-    confirm.mockReturnValue(true);
-    await user.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(actions.deleteResumeAction).toHaveBeenCalledTimes(1));
+    expect((actions.deleteResumeAction.mock.calls[0][1] as FormData).get("id")).toBe("r1");
+    await waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Deleted "Backend Resume".'));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
-  it("shows an error from the server", async () => {
+  it("can be dismissed with the Escape key", async () => {
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await screen.findByRole("alertdialog");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(actions.deleteResumeAction).not.toHaveBeenCalled();
+  });
+
+  it("confirms a rename and a duplicate with a toast", async () => {
+    actions.renameResumeAction.mockResolvedValue({ message: 'Renamed to "Platform Resume".' });
+    actions.duplicateResumeAction.mockResolvedValue({
+      message: 'Created "Backend Resume (copy)".',
+    });
+    const user = userEvent.setup();
+    renderCard();
+
+    await user.click(screen.getByRole("button", { name: "Duplicate" }));
+    await waitFor(() =>
+      expect(toasts.success).toHaveBeenCalledWith('Created "Backend Resume (copy)".'),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Rename" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(toasts.success).toHaveBeenCalledWith('Renamed to "Platform Resume".'),
+    );
+    expect(screen.queryByLabelText("Resume title")).toBeNull(); // back out of rename mode
+  });
+
+  it("shows a server error as a toast, not inline", async () => {
     actions.duplicateResumeAction.mockResolvedValue({ error: "You can have at most 20 resumes." });
     const user = userEvent.setup();
     renderCard();
     await user.click(screen.getByRole("button", { name: "Duplicate" }));
-    expect((await screen.findByRole("alert")).textContent).toContain("at most 20 resumes");
+    await waitFor(() =>
+      expect(toasts.error).toHaveBeenCalledWith("You can have at most 20 resumes."),
+    );
+    expect(toasts.success).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("stays in rename mode when the rename fails, so nothing typed is lost", async () => {
+    actions.renameResumeAction.mockResolvedValue({ error: "Title is required" });
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getByRole("button", { name: "Rename" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith("Title is required"));
+    expect(screen.getByLabelText("Resume title")).toBeTruthy();
   });
 });
 

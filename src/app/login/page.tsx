@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { safeRedirect } from "@/lib/safe-redirect";
 import { signInWithGoogle } from "./actions";
 
@@ -11,7 +11,7 @@ async function GoogleSignIn({ searchParams }: { searchParams: Promise<{ callback
   const { callbackUrl } = await searchParams;
   const redirectTo = safeRedirect(callbackUrl);
 
-  if (await auth()) redirect(redirectTo);
+  if (await getSession()) redirect(redirectTo);
 
   return (
     <form action={signInWithGoogle}>
@@ -29,7 +29,7 @@ export default function LoginPage({
   searchParams: Promise<{ callbackUrl?: string }>;
 }) {
   return (
-    <main className="bg-brand-glow relative flex min-h-screen flex-col items-center justify-center gap-8 p-6">
+    <main className="relative flex min-h-screen flex-col items-center justify-center gap-8 p-6">
       <ThemeToggle className="absolute top-4 right-4" />
       <Logo href="/" />
       <div className="bg-card shadow-pop w-full max-w-sm space-y-6 rounded-2xl border p-8 text-center">

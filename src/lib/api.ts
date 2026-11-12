@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { UnauthorizedError } from "@/lib/session";
 import { ImportError } from "@/modules/import";
+import { JobError } from "@/modules/jobs";
 import { LimitReachedError, NotFoundError } from "@/modules/resumes";
 
 /** Runs a route handler and maps known errors to JSON HTTP responses. */
@@ -16,6 +17,9 @@ export async function handle(fn: () => Promise<Response>): Promise<Response> {
       return NextResponse.json({ error: err.message }, { status: 404 });
     }
     if (err instanceof ImportError) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    }
+    if (err instanceof JobError) {
       return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
     }
     if (err instanceof LimitReachedError) {

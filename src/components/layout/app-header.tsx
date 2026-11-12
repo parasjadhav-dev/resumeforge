@@ -2,13 +2,13 @@ import { Suspense } from "react";
 import { signOutAction } from "@/app/login/actions";
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { PageContainer } from "./page-container";
 import { UserMenu } from "./user-menu";
 
 /** The signed-in user's menu. Reads the session, so it streams in separately from the header. */
 async function HeaderUser() {
-  const session = await auth();
+  const session = await getSession();
   return (
     <UserMenu name={session?.user?.name} email={session?.user?.email} signOut={signOutAction} />
   );

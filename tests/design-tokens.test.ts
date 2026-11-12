@@ -123,8 +123,11 @@ for (const [theme, selector] of [
       ["--primary-foreground", "--primary"],
       ["--secondary-foreground", "--secondary"],
       ["--accent-foreground", "--accent"],
+      ["--brand", "--background"], // the copper accent: wordmark, headline emphasis
+      ["--brand", "--card"],
       ["--primary", "--background"], // links and brand-coloured text
       ["--primary", "--card"],
+      ["--destructive-foreground", "--destructive"], // the solid delete-confirm button
       ["--destructive", "--background"],
       ["--destructive", "--card"],
       ["--info-foreground", "--info"],

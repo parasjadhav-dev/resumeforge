@@ -29,6 +29,10 @@ type Screen = {
   /** Text that proves the screen has finished rendering. */
   ready: string | RegExp;
   prepare?: (page: Page, ids: Seed) => Promise<void>;
+  /** Runs once the screen is ready, to put it into the state worth photographing. */
+  interact?: (page: Page) => Promise<void>;
+  /** Photograph only what fits on screen. Needed for overlays: a full-page capture misplaces them. */
+  viewportOnly?: boolean;
 };
 
 const seed = (): Seed => JSON.parse(readFileSync(`${STATE_DIR}/seed.json`, "utf8")).ids;
@@ -38,6 +42,21 @@ const SCREENS: Screen[] = [
   { name: "login", auth: "none", path: () => "/login", ready: "Continue with Google" },
   { name: "dashboard", auth: "main", path: () => "/dashboard", ready: "Software Engineer Resume" },
   { name: "dashboard-empty", auth: "empty", path: () => "/dashboard", ready: "No resumes yet" },
+  {
+    name: "dashboard-delete-dialog",
+    auth: "main",
+    path: () => "/dashboard",
+    ready: "Blank Resume",
+    viewportOnly: true,
+    interact: async (page) => {
+      await page
+        .getByRole("listitem")
+        .filter({ has: page.getByRole("link", { name: "Blank Resume", exact: true }) })
+        .getByRole("button", { name: "Delete" })
+        .click();
+      await expect(page.getByRole("alertdialog")).toBeVisible();
+    },
+  },
   {
     name: "editor-classic",
     auth: "main",
@@ -74,6 +93,49 @@ const SCREENS: Screen[] = [
         `rf-import:${s.imported}`,
         JSON.stringify({ review: IMPORT_REVIEW, sourceText: IMPORT_SOURCE_TEXT }),
       ] as const);
+    },
+  },
+  {
+    name: "tailor-empty",
+    auth: "main",
+    path: (s) => `/resumes/${s.classic}/tailor`,
+    ready: "Analyze job",
+  },
+  {
+    name: "tailor-result",
+    auth: "main",
+    path: (s) => `/resumes/${s.classic}/tailor`,
+    ready: "Analyze job",
+    // The analysis is mocked so the screenshot is always the same and no AI call is made.
+    prepare: async (page) => {
+      await page.route("**/api/jobs/analyze", (route) =>
+        route.fulfill({
+          json: {
+            jobTitle: "Junior Backend Developer",
+            company: "Acme Corp",
+            cached: false,
+            analysis: {
+              title: "Junior Backend Developer",
+              company: "Acme Corp",
+              seniority: "entry",
+              educationRequired: "bachelor",
+              minYearsExperience: 1,
+              requiredSkills: ["Python", "REST APIs", "PostgreSQL", "Git", "Docker"],
+              preferredSkills: ["AWS", "CI/CD"],
+              keywords: ["automated testing", "code review"],
+              responsibilities: [
+                "Build and maintain REST APIs",
+                "Write automated tests for new features",
+              ],
+            },
+          },
+        }),
+      );
+    },
+    interact: async (page) => {
+      await page.getByLabel("Job description").fill("x".repeat(120));
+      await page.getByRole("button", { name: "Analyze job" }).click();
+      await expect(page.getByTestId("analysis-result")).toBeVisible();
     },
   },
   {
@@ -118,13 +180,14 @@ for (const [viewportName, viewport] of Object.entries(VIEWPORTS)) {
             await screen.prepare?.(page, ids);
             await page.goto(screen.path(ids));
             await expect(page.getByText(screen.ready).first()).toBeVisible();
+            await screen.interact?.(page);
             await page.waitForLoadState("networkidle");
             await page.evaluate(() => document.fonts.ready);
 
             mkdirSync(SHOTS_DIR, { recursive: true });
             await page.screenshot({
               path: `${SHOTS_DIR}/${screen.name}.${variant}.png`,
-              fullPage: true,
+              fullPage: !screen.viewportOnly,
               animations: "disabled",
             });
 

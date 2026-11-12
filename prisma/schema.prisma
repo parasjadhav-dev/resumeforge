@@ -94,3 +94,13 @@ model TailoredVersion {
 
   @@index([resumeId, createdAt])
 }
+
+/// Cached results of analysing a job description, keyed by a hash of the normalised text
+/// (and the analysis version). Only the hash and the analysis are stored: never the job text,
+/// and nothing that identifies a user.
+model JobAnalysisCache {
+  hash          String   @id
+  promptVersion Int
+  analysis      Json
+  createdAt     DateTime @default(now())
+}

@@ -6,15 +6,16 @@ import { ZodError } from "zod";
 import { requireUser, UnauthorizedError } from "@/lib/session";
 import { LimitReachedError, NotFoundError, resumeService } from "@/modules/resumes";
 
-export type ActionState = { error?: string };
+/** `error` explains a failure; `message` is a short confirmation of success (shown as a toast). */
+export type ActionState = { error?: string; message?: string };
 
-/** Auth + error mapping shared by every dashboard action. */
-async function run(fn: (userId: string) => Promise<void>): Promise<ActionState> {
+/** Auth + error mapping shared by every dashboard action. The action may return a success message. */
+async function run(fn: (userId: string) => Promise<string | void>): Promise<ActionState> {
   try {
     const user = await requireUser();
-    await fn(user.id);
+    const message = await fn(user.id);
     revalidatePath("/dashboard");
-    return {};
+    return message ? { message } : {};
   } catch (err) {
     if (err instanceof UnauthorizedError) redirect("/login");
     if (err instanceof NotFoundError || err instanceof LimitReachedError) {
@@ -39,18 +40,27 @@ export async function createResumeAction(_: ActionState, formData: FormData) {
 
 export async function renameResumeAction(_: ActionState, formData: FormData) {
   return run(async (userId) => {
-    await resumeService.rename(userId, text(formData, "id"), text(formData, "title"));
+    const renamed = await resumeService.rename(
+      userId,
+      text(formData, "id"),
+      text(formData, "title"),
+    );
+    return `Renamed to "${renamed.title}".`;
   });
 }
 
 export async function duplicateResumeAction(_: ActionState, formData: FormData) {
   return run(async (userId) => {
-    await resumeService.duplicate(userId, text(formData, "id"));
+    const copy = await resumeService.duplicate(userId, text(formData, "id"));
+    return `Created "${copy.title}".`;
   });
 }
 
 export async function deleteResumeAction(_: ActionState, formData: FormData) {
   return run(async (userId) => {
-    await resumeService.remove(userId, text(formData, "id"));
+    const id = text(formData, "id");
+    const { title } = await resumeService.get(userId, id); // for the confirmation message
+    await resumeService.remove(userId, id);
+    return `Deleted "${title}".`;
   });
 }
