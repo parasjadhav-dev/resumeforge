@@ -9,11 +9,12 @@ test.describe("landing page", () => {
     await expect(page).toHaveTitle(/ResumeForge/);
   });
 
-  test("a visitor who clicks Get started lands on sign-in", async ({ page }) => {
+  test("a visitor who clicks Get started lands on create-account", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: /get started free/i }).click();
-    await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+    await expect(page).toHaveURL(/\/signup$/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Create your free account");
+    await expect(page.getByRole("button", { name: "Sign up with Google" })).toBeVisible();
   });
 
   test("See how it works scrolls to the explanation", async ({ page }) => {

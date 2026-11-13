@@ -40,6 +40,13 @@ const seed = (): Seed => JSON.parse(readFileSync(`${STATE_DIR}/seed.json`, "utf8
 const SCREENS: Screen[] = [
   { name: "landing", auth: "none", path: () => "/", ready: "Get started free" },
   { name: "login", auth: "none", path: () => "/login", ready: "Continue with Google" },
+  { name: "signup", auth: "none", path: () => "/signup", ready: "Sign up with Google" },
+  {
+    name: "login-error",
+    auth: "none",
+    path: () => "/login?error=AccessDenied",
+    ready: "Google did not let us sign you in",
+  },
   { name: "dashboard", auth: "main", path: () => "/dashboard", ready: "Software Engineer Resume" },
   { name: "dashboard-empty", auth: "empty", path: () => "/dashboard", ready: "No resumes yet" },
   {

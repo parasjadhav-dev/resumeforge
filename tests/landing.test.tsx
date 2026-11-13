@@ -50,10 +50,11 @@ describe("landing page", () => {
     ]);
   });
 
-  it("sends every call to action to sign-in, and the secondary one to the explanation", () => {
-    for (const name of [/get started free/i, /build my resume/i, "Sign in"]) {
-      expect(screen.getByRole("link", { name }).getAttribute("href")).toBe("/login");
+  it("sends the sign-up calls to the account page, sign in to sign-in, and the secondary one to the explanation", () => {
+    for (const name of [/get started free/i, /build my resume/i]) {
+      expect(screen.getByRole("link", { name }).getAttribute("href")).toBe("/signup");
     }
+    expect(screen.getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/login");
     expect(screen.getByRole("link", { name: "See how it works" }).getAttribute("href")).toBe(
       "#how-it-works",
     );

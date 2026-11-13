@@ -145,7 +145,7 @@ export default function LandingPage() {
               helps with structure and wording, and the AI never invents experience you do not have.
             </p>
             <div className="flex flex-wrap items-center gap-3">
-              <Link href="/login" className={cn(buttonVariants(), cta)}>
+              <Link href="/signup" className={cn(buttonVariants(), cta)}>
                 Get started free <ArrowRight aria-hidden="true" />
               </Link>
               <Link
@@ -292,7 +292,7 @@ export default function LandingPage() {
             </h2>
             <p className="max-w-md opacity-90">It takes a few minutes, and it is free.</p>
             <Link
-              href="/login"
+              href="/signup"
               className={cn(
                 buttonVariants({ variant: "secondary" }),
                 cta,
